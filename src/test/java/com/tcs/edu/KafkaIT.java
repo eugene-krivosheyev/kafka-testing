@@ -1,4 +1,4 @@
-package com.acme;
+package com.tcs.edu;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -33,6 +33,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class KafkaIT {
     @Container
     @SuppressWarnings("rawtypes")
+    /*
+     * - [ ] KafkaContainer with Spring Boot
+     * - [ ] ZooKeeper vs Kraft
+     */
     GenericContainer kafka = new GenericContainer(DockerImageName.parse("bitnami/kafka:3.5.1"))
             .withNetworkMode("host")
             .withEnv("KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP", "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT")
@@ -49,6 +53,9 @@ public class KafkaIT {
             .withStartupTimeout(Duration.ofSeconds(120))
             .withReuse(true);
 
+    /*
+     * Consumer vs Producer settings.
+     */
     final Map<String, Object> settings = Map.<String, Object>of(
             "bootstrap.servers", "localhost:9092",
             "key.serializer", "org.apache.kafka.common.serialization.StringSerializer",
@@ -70,42 +77,64 @@ public class KafkaIT {
     }
 
     /**
-     * Test Scope 4
      * <a href="https://docs.confluent.io/kafka-clients/java/current/overview.html">Java Kafka API</a>
+     * @startuml
+     * package "Test Scope 4" {
+     *     component Sender <<app>><<sut>>
+     *     interface Producer <<lib>>
+     *     component Topic <<lib>>
+     *     Sender -> Producer: send
+     *     interface Consumer <<lib>>
+     *     component Receiver <<app>><<sut>>
+     *     Producer .> Topic
+     *     Topic <. Consumer
+     *     Consumer <- Receiver: poll
+     * }
+     * @enduml
      */
     @Test
-    public void shouldSendAndReceiveMessageWithPolling() {
+    public void shouldSendAndReceiveMessageWithPolling() throws ExecutionException, InterruptedException {
         try (final var consumer = new KafkaConsumer<String, String>(settings);
              final var producer = new KafkaProducer<String, String>(settings)) {
 
-            //region SUT Sender
+            //region тут должен быть SUT Sender
             //NB asynchronous writes
-            var result = producer.send(new ProducerRecord<>("test-topic", UUID.randomUUID().toString(), "Hello World!"));
+            var resultPromise = producer.send(new ProducerRecord<>("test-topic", UUID.randomUUID().toString(), "Hello World!"));
 //                    (metadata, exception) -> { //NB optional callback
 //                        if (exception != null) exception.printStackTrace();
 //                        else System.out.println("record sent: " + metadata);
 //                    });
-            //NB result.get() for synchronous writes
+            //NB resultPromise.get() for synchronous writes
             //NB producer.flush() for batch writes
             //endregion
 
-            //region SUT Receiver
+            //region тут должен быть SUT Receiver
             consumer.subscribe(Collections.singletonList("test-topic")); //NB timing + "auto.offset.reset"
             ConsumerRecords<String, String> records;
             do {
                 records = consumer.poll(Duration.ofMillis(100));
                 //NB consumer.commitSync(); consumer.commitAsync();
             } while (records.isEmpty());
+            //endregion
 
             assertThat(records)
                     .extracting("value")
                     .containsExactly("Hello World!");
-            //endregion
         }
     }
 
     /**
-     * Test Scope 5
+     * @startuml
+     * package "Test Scope 5" {
+     *     interface Producer <<lib>>
+     *     component Topic <<lib>>
+     *     component Receiver <<app>><<sut>>
+     *     interface KafkaStreams <<lib>>
+     *     Producer .> Topic
+     *     Topic <.. KafkaStreams
+     *     KafkaStreams -> Receiver
+     * }
+     * @enduml
      */
     @Test
     public void shouldSendAndReceiveMessageWithKafkaStreamsCallback() throws InterruptedException, ExecutionException {

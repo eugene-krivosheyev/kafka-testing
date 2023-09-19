@@ -1,4 +1,4 @@
-package com.acme;
+package com.tcs.edu;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.MockConsumer;
@@ -21,7 +21,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class KafkaTest {
     /**
-     * Test Scope 1
+     * @startuml
+     * package "Test Scope 1" {
+     *     component Sender <<app>><<sut>>
+     *     interface Producer <<mock>>
+     *     Sender -> Producer: send
+     * }
+     * @enduml
      */
     @Test
     public void shouldSendMessageWithMocks() {
@@ -33,15 +39,24 @@ public class KafkaTest {
             mockProducer.send(new ProducerRecord<>("test-topic", UUID.randomUUID().toString(), "Hello World!"));
             //endregion
 
+            //region Asserts
             assertThat(mockProducer.history())
                     .extracting(ProducerRecord::value)
                     .containsExactly("Hello World!");
+            //endregion
         }
     }
 
     /**
-     * Test Scope 2
      * <a href="https://www.baeldung.com/kafka-mockconsumer">REF</a>
+     * @startuml
+     * package "Test Scope 2" {
+     *     component Receiver <<app>><<sut>>
+     *     interface Consumer <<mock>>
+     *     Receiver -> Consumer: subscribe
+     *     Receiver -> Consumer: poll
+     * }
+     * @enduml
      */
     @Test
     public void shouldReceiveMessageWithMocks() {
@@ -59,22 +74,30 @@ public class KafkaTest {
                         "Hello World 1!"));
             });
 
-            //region SUT
+            //region тут должен быть SUT
             mockConsumer.subscribe(Collections.singletonList("test-topic"));
             final var consumerRecords = mockConsumer.poll(Duration.ofMillis(0));
             //endregion
 
+            //region Asserts
             assertThat(consumerRecords)
                     .extracting(ConsumerRecord::value)
                     .containsExactly("Hello World 0!", "Hello World 1!");
+            //endregion
         }
     }
 
-
-
     /**
-     * Test Scope 3
      * <a href="https://docs.confluent.io/platform/current/streams/developer-guide/test-streams.html">REF</a>
+     * @startuml
+     * package "Test Scope 3" {
+     *     component Receiver <<app>><<sut>>
+     *     component Topic <<mock>>
+     *     interface KafkaStreams <<lib>>
+     *     Topic <.. KafkaStreams
+     *     KafkaStreams -> Receiver
+     * }
+     * @enduml
      */
     @Test
     public void shouldSendAndReceiveMessageWithKafkaStreamsMocks() {
@@ -85,16 +108,20 @@ public class KafkaTest {
                 .mapValues(s -> s.toUpperCase())
                 .peek((k, v) -> System.out.println("Transformed event: " + v))
                 .to("output-topic", Produced.with(Serdes.String(), Serdes.String()));
+//                .foreach((k, v) -> System.out.println("Sent event: " + v));
         final var topology = builder.build();
         //endregion
 
         try(final var testDriver = new TopologyTestDriver(topology);
-            final var stringSerde = Serdes.String()) {
+            final var stringSerdeFactory = Serdes.String();
+            final var deserializer = stringSerdeFactory.deserializer();
+            final var stringSerializer = stringSerdeFactory.serializer()) {
 
-            final var inputTopic = testDriver.createInputTopic("test-topic", stringSerde.serializer(), stringSerde.serializer());
-            final var outputTopic = testDriver.createOutputTopic("output-topic", stringSerde.deserializer(), stringSerde.deserializer());
+            final var inputTopic = testDriver.createInputTopic("test-topic", stringSerializer, stringSerializer);
+            final var outputTopic = testDriver.createOutputTopic("output-topic", deserializer, deserializer);
 
             inputTopic.pipeInput("Hello World!");
+            //topology working for a while
             assertThat(outputTopic.readValuesToList())
                     .containsExactly("HELLO WORLD!");
         }

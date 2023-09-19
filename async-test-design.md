@@ -213,113 +213,109 @@ Consumer ->> Topic: Result
 Kafka
 -----
 - Broker
-- Scaling and performance
+- Performance
+- Scaling
 - Topics
 ![](https://i.stack.imgur.com/zlpIN.png)
 - "DB inside out" and durable log
-- offset
+- `offset`
 ![](https://datacadamia.com/_media/dit/kafka/log_consumer.png?fetcher=raw&tseed=1508935965)
-
-Demo project structure
-----------------------
-- Test scopes
-- Dependencies
-- Snippets
 
 Kafka @docker
 -------------
-- Images: confluentinc vs bitnami
+- Images: `confluentinc` vs `bitnami`
 - Externalized configuration
 - Kafka client
+
+Demo project structure
+----------------------
+- Dependencies
+- Snippets
 
 Тест-дизайн: варианты покрытия и тест-дублеры
 ------------------------------
 ```plantuml
 @startuml 'https://plantuml.com/ru/component-diagram
 
-component Sender
-component Producer <<lib>>
-Sender -> Producer: send
+component Sender <<app>>
+interface Producer <<lib>>
 component Topic <<lib>>
-Producer -> Topic
-component Consumer <<lib>>
-Topic <- Consumer: sub
-component Receiver
+Sender -> Producer: send
+interface Consumer <<lib>>
+component Receiver <<app>>
+interface KafkaStreams <<lib>>
+
+Producer .> Topic
+Topic <. Consumer
 Consumer <- Receiver: poll
-Topic <.. KafkaStreams: conf
+Topic <.. KafkaStreams
 KafkaStreams -> Receiver
-}
 
 @enduml
 ```
+
+---
+
 ```plantuml
 @startuml 'https://plantuml.com/ru/component-diagram
 package "Test Scope 1" {
-    component Sender
-}
-component Producer <<mock>>
-Sender -> Producer: send
-}
+    component Sender <<app>><<sut>>
+    interface Producer <<mock>>
 
+    Sender -> Producer: send
+}
 @enduml
 ```
 ```plantuml
 @startuml 'https://plantuml.com/ru/component-diagram
 package "Test Scope 2" {
-    component Receiver
-}
-component Consumer <<mock>>
-Receiver -> Consumer: subscribe
-Receiver -> Consumer: poll
-}
+    component Receiver <<app>><<sut>>
 
+    interface Consumer <<mock>>
+    Receiver -> Consumer: subscribe
+    Receiver -> Consumer: poll
+}
 @enduml
 ```
 ```plantuml
 @startuml 'https://plantuml.com/ru/component-diagram
 package "Test Scope 3" {
-    component Receiver <<pipeline>>
+    component Receiver <<app>><<sut>>
+    component Topic <<mock>>
+    interface KafkaStreams <<lib>>
+    Topic <.. KafkaStreams
+    KafkaStreams -> Receiver 
 }
-component Topic <<mock>>
-interface KafkaStreams <<lib>>
-Topic <.. KafkaStreams: conf
-KafkaStreams -> Receiver 
-
 @enduml
 ```
 
 ```plantuml
 @startuml 'https://plantuml.com/ru/component-diagram
+package "Test Scope 4" {
+    component Sender <<app>><<sut>>
+    interface Producer <<lib>>
+    component Topic <<lib>>
+    Sender -> Producer: send
+    interface Consumer <<lib>>
+    component Receiver <<app>><<sut>>
 
-package "Test Scope 4.1" {
-    component Sender
+    Producer .> Topic
+    Topic <. Consumer
+    Consumer <- Receiver: poll
 }
-component Producer <<lib>>
-Sender -> Producer: send
-component Topic <<lib>>
-Producer -> Topic
-component Consumer <<lib>>
-Topic <- Consumer: sub
-package "Test Scope 4.2" {
-    component Receiver
-}
-Consumer <- Receiver: poll
-}
-
 @enduml
 ```
 ```plantuml
 @startuml 'https://plantuml.com/ru/component-diagram
-
-component Producer <<lib>>
-component Topic <<lib>>
-Producer -> Topic
 package "Test Scope 5" {
-component Receiver <<pipeline>>
+    interface Producer <<lib>>
+    component Topic <<lib>>
+    component Receiver <<app>><<sut>>
+    interface KafkaStreams <<lib>>
+    
+    Producer .> Topic
+    Topic <.. KafkaStreams
+    KafkaStreams -> Receiver
 }
-Topic <.. KafkaStreams: conf
-KafkaStreams -> Receiver
-}
-
 @enduml
 ```
